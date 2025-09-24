@@ -1,0 +1,375 @@
+# templates/weather/weather_dashboard.html
+{% extends 'base.html' %}
+
+{% block title %}Weather Dashboard - Task Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Weather Dashboard</h2>
+    <div class="d-flex gap-2">
+        <input type="text" id="cityInput" class="form-control" placeholder="Enter city name" style="width: 200px;">
+        <button class="btn btn-primary" onclick="searchWeather()">
+            <i class="fas fa-search"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Current Weather -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card weather-widget">
+            <div class="card-body" id="currentWeather">
+                <div class="text-center">
+                    <div class="spinner-border text-light" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 mb-0">Loading current weather...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Weather Stats</h6>
+            </div>
+            <div class="card-body" id="weatherStats">
+                <div class="text-center text-muted">
+                    <p>Select a city to view statistics</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Weather History Chart -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Temperature Trends</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="temperatureChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Popular Cities -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Popular Cities</h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="loadPopularCities()">
+                    <i class="fas fa-refresh me-1"></i>Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="row" id="popularCities">
+                    <div class="col-12 text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let temperatureChart;
+    const popularCitiesList = ['London', 'New York', 'Tokyo', 'Paris', 'Sydney', 'Dubai'];
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        loadCurrentWeather('London');
+        loadPopularCities();
+        initTemperatureChart();
+        
+        // Enter key support for city search
+        document.getElementById('cityInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchWeather();
+            }
+        });
+    });
+
+    async function loadCurrentWeather(city) {
+        try {
+            const data = await makeRequest(`/weather/api/${city}/`);
+            
+            if (data.error) {
+                document.getElementById('currentWeather').innerHTML = `
+                    <div class="text-center">
+                        <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                        <h5>${data.error}</h5>
+                        <p class="mb-0">Please try a different city</p>
+                    </div>
+                `;
+                return;
+            }
+
+            document.getElementById('currentWeather').innerHTML = `
+                <div class="row align-items-center">
+                    <div class="col-md-3 text-center">
+                        <img src="https://openweathermap.org/img/wn/${data.icon}@4x.png" 
+                             alt="${data.description}" class="img-fluid" style="max-width: 120px;">
+                    </div>
+                    <div class="col-md-6">
+                        <h2 class="display-4 mb-0">${Math.round(data.temperature)}°C</h2>
+                        <h4 class="mb-2">${data.city}, ${data.country}</h4>
+                        <p class="mb-0 text-capitalize">${data.description}</p>
+                        <small class="text-light">Last updated: ${new Date().toLocaleTimeString()}</small>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="d-flex flex-column gap-2">
+                            <div class="d-flex justify-content-between">
+                                <span>Feels like:</span>
+                                <strong>${Math.round(data.temperature)}°C</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Humidity:</span>
+                                <strong>${data.humidity}%</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Pressure:</span>
+                                <strong>${data.pressure} hPa</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Wind:</span>
+                                <strong>${data.wind_speed} m/s</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            updateWeatherStats(data);
+            
+        } catch (error) {
+            console.error('Error loading weather:', error);
+            document.getElementById('currentWeather').innerHTML = `
+                <div class="text-center">
+                    <i class="fas fa-cloud-slash fa-2x mb-2"></i>
+                    <h5>Weather Service Unavailable</h5>
+                    <p class="mb-0">Please try again later</p>
+                </div>
+            `;
+        }
+    }
+
+    function updateWeatherStats(data) {
+        const comfort = getComfortLevel(data.temperature, data.humidity);
+        const windDescription = getWindDescription(data.wind_speed);
+        
+        document.getElementById('weatherStats').innerHTML = `
+            <div class="list-group list-group-flush">
+                <div class="list-group-item d-flex justify-content-between px-0 bg-transparent border-0">
+                    <span>Comfort Level:</span>
+                    <strong class="text-${comfort.color}">${comfort.level}</strong>
+                </div>
+                <div class="list-group-item d-flex justify-content-between px-0 bg-transparent border-0">
+                    <span>Wind Condition:</span>
+                    <strong>${windDescription}</strong>
+                </div>
+                <div class="list-group-item d-flex justify-content-between px-0 bg-transparent border-0">
+                    <span>Visibility:</span>
+                    <strong>Good</strong>
+                </div>
+                <div class="list-group-item d-flex justify-content-between px-0 bg-transparent border-0">
+                    <span>UV Index:</span>
+                    <strong>Moderate</strong>
+                </div>
+            </div>
+            
+            <div class="mt-3">
+                <h6>Weather Recommendations:</h6>
+                <ul class="list-unstyled small">
+                    ${getWeatherRecommendations(data)}
+                </ul>
+            </div>
+        `;
+    }
+
+    function getComfortLevel(temp, humidity) {
+        if (temp >= 18 && temp <= 24 && humidity >= 40 && humidity <= 60) {
+            return { level: 'Excellent', color: 'success' };
+        } else if (temp >= 15 && temp <= 27 && humidity >= 30 && humidity <= 70) {
+            return { level: 'Good', color: 'info' };
+        } else if (temp >= 10 && temp <= 30) {
+            return { level: 'Fair', color: 'warning' };
+        } else {
+            return { level: 'Poor', color: 'danger' };
+        }
+    }
+
+    function getWindDescription(speed) {
+        if (speed < 2) return 'Calm';
+        if (speed < 5) return 'Light Breeze';
+        if (speed < 10) return 'Moderate';
+        if (speed < 15) return 'Strong';
+        return 'Very Strong';
+    }
+
+    function getWeatherRecommendations(data) {
+        let recommendations = [];
+        
+        if (data.temperature < 10) {
+            recommendations.push('<li><i class="fas fa-snowflake text-info me-1"></i>Dress warmly, consider layers</li>');
+        } else if (data.temperature > 25) {
+            recommendations.push('<li><i class="fas fa-sun text-warning me-1"></i>Stay hydrated, wear light clothing</li>');
+        }
+        
+        if (data.humidity > 70) {
+            recommendations.push('<li><i class="fas fa-tint text-primary me-1"></i>High humidity - expect muggy conditions</li>');
+        }
+        
+        if (data.wind_speed > 10) {
+            recommendations.push('<li><i class="fas fa-wind text-secondary me-1"></i>Windy conditions - secure loose items</li>');
+        }
+        
+        if (recommendations.length === 0) {
+            recommendations.push('<li><i class="fas fa-thumbs-up text-success me-1"></i>Perfect weather conditions!</li>');
+        }
+        
+        return recommendations.join('');
+    }
+
+    async function loadPopularCities() {
+        const container = document.getElementById('popularCities');
+        container.innerHTML = '<div class="col-12 text-center"><div class="spinner-border" role="status"></div></div>';
+        
+        try {
+            const citiesData = await Promise.all(
+                popularCitiesList.map(city => 
+                    makeRequest(`/weather/api/${city}/`).catch(() => ({ error: true, city }))
+                )
+            );
+            
+            container.innerHTML = '';
+            
+            citiesData.forEach((data, index) => {
+                const city = popularCitiesList[index];
+                const cardHtml = data.error ? `
+                    <div class="col-md-2 mb-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <i class="fas fa-exclamation-triangle text-muted fa-2x mb-2"></i>
+                                <h6 class="card-title">${city}</h6>
+                                <p class="text-muted small">Unavailable</p>
+                            </div>
+                        </div>
+                    </div>
+                ` : `
+                    <div class="col-md-2 mb-3">
+                        <div class="card text-center city-card" onclick="loadCurrentWeather('${data.city}')" style="cursor: pointer;">
+                            <div class="card-body">
+                                <img src="https://openweathermap.org/img/wn/${data.icon}.png" alt="${data.description}" class="mb-2">
+                                <h6 class="card-title">${data.city}</h6>
+                                <h5 class="text-primary">${Math.round(data.temperature)}°C</h5>
+                                <p class="text-muted small text-capitalize">${data.description}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                container.insertAdjacentHTML('beforeend', cardHtml);
+            });
+            
+        } catch (error) {
+            console.error('Error loading popular cities:', error);
+            container.innerHTML = '<div class="col-12 text-center text-muted">Error loading cities data</div>';
+        }
+    }
+
+    function initTemperatureChart() {
+        const ctx = document.getElementById('temperatureChart').getContext('2d');
+        
+        // Generate sample temperature data
+        const hours = [];
+        const temperatures = [];
+        const currentTime = new Date();
+        
+        for (let i = 23; i >= 0; i--) {
+            const time = new Date(currentTime.getTime() - i * 60 * 60 * 1000);
+            hours.push(time.getHours() + ':00');
+            temperatures.push(Math.round(15 + Math.random() * 15 + Math.sin(i * 0.5) * 5));
+        }
+        
+        temperatureChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: hours,
+                datasets: [{
+                    label: 'Temperature (°C)',
+                    data: temperatures,
+                    borderColor: '#74b9ff',
+                    backgroundColor: 'rgba(116, 185, 255, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 3,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        titleColor: 'white',
+                        bodyColor: 'white',
+                        borderColor: '#74b9ff',
+                        borderWidth: 1
+                    }
+                }
+            }
+        });
+    }
+
+    function searchWeather() {
+        const city = document.getElementById('cityInput').value.trim();
+        if (city) {
+            loadCurrentWeather(city);
+            document.getElementById('cityInput').value = '';
+        } else {
+            showToast('Please enter a city name', 'warning');
+        }
+    }
+
+    // Add hover effect for city cards
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.city-card')) {
+            showToast('Loading weather data...', 'info');
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,306 @@
+<!-- templates/dashboard.html -->
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Task Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Dashboard</h2>
+    <a href="{% url 'tasks:create_task' %}" class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>New Task
+    </a>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-primary">
+                    <i class="fas fa-tasks fa-2x mb-2"></i>
+                </div>
+                <h3 class="card-title">{{ total_tasks }}</h3>
+                <p class="card-text text-muted">Total Tasks</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-warning">
+                    <i class="fas fa-clock fa-2x mb-2"></i>
+                </div>
+                <h3 class="card-title">{{ pending_tasks }}</h3>
+                <p class="card-text text-muted">Pending</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-success">
+                    <i class="fas fa-check-circle fa-2x mb-2"></i>
+                </div>
+                <h3 class="card-title">{{ completed_tasks }}</h3>
+                <p class="card-text text-muted">Completed</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-danger">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                </div>
+                <h3 class="card-title">{{ overdue_tasks }}</h3>
+                <p class="card-text text-muted">Overdue</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Task Status Distribution</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Priority Breakdown</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="priorityChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Tasks and Weather -->
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Tasks</h5>
+                <a href="{% url 'tasks:task_list' %}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                {% if recent_tasks %}
+                    <div class="list-group list-group-flush">
+                        {% for task in recent_tasks %}
+                            <div class="list-group-item d-flex justify-content-between align-items-start">
+                                <div class="ms-2 me-auto">
+                                    <div class="fw-bold">{{ task.title }}</div>
+                                    <small class="text-muted">{{ task.description|truncatechars:50 }}</small>
+                                    <br>
+                                    <small class="text-muted">Created: {{ task.created_at|date:"M d, Y" }}</small>
+                                </div>
+                                <div>
+                                    <span class="badge bg-{{ task.priority|yesno:"danger,warning,success" }} rounded-pill">
+                                        {{ task.get_priority_display }}
+                                    </span>
+                                    <br>
+                                    <small class="badge bg-secondary mt-1">{{ task.get_status_display }}</small>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No tasks yet. Create your first task!</p>
+                        <a href="{% url 'tasks:create_task' %}" class="btn btn-primary">Create Task</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card weather-widget">
+            <div class="card-header bg-transparent border-0">
+                <h5 class="mb-0 text-white">Today's Weather</h5>
+            </div>
+            <div class="card-body" id="weatherWidget">
+                <div class="text-center">
+                    <div class="spinner-border text-light" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 mb-0">Loading weather...</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">Quick Actions</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'tasks:create_task' %}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-plus me-2"></i>New Task
+                    </a>
+                    <a href="{% url 'tasks:task_list' %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-list me-2"></i>View All Tasks
+                    </a>
+                    <button class="btn btn-outline-info btn-sm" onclick="refreshCharts()">
+                        <i class="fas fa-refresh me-2"></i>Refresh Data
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let statusChart, priorityChart;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadCharts();
+        loadWeather();
+    });
+
+    async function loadCharts() {
+        try {
+            const data = await makeRequest('/api/tasks/stats/');
+            
+            // Status Chart
+            const statusCtx = document.getElementById('statusChart').getContext('2d');
+            statusChart = new Chart(statusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.status_distribution.map(item => item.status.replace('_', ' ').toUpperCase()),
+                    datasets: [{
+                        data: data.status_distribution.map(item => item.count),
+                        backgroundColor: ['#ffc107', '#17a2b8', '#28a745', '#6c757d'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+
+            // Priority Chart
+            const priorityCtx = document.getElementById('priorityChart').getContext('2d');
+            priorityChart = new Chart(priorityCtx, {
+                type: 'bar',
+                data: {
+                    labels: data.priority_distribution.map(item => item.priority.toUpperCase()),
+                    datasets: [{
+                        label: 'Tasks',
+                        data: data.priority_distribution.map(item => item.count),
+                        backgroundColor: ['#28a745', '#ffc107', '#dc3545', '#6f42c1'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error('Error loading charts:', error);
+            showToast('Error loading dashboard data', 'danger');
+        }
+    }
+
+    async function loadWeather() {
+        try {
+            // Default to a major city, in production you'd get user's location
+            const data = await makeRequest('/weather/api/London/');
+            
+            if (data.error) {
+                document.getElementById('weatherWidget').innerHTML = `
+                    <div class="text-center">
+                        <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                        <p class="mb-0">Weather unavailable</p>
+                    </div>
+                `;
+                return;
+            }
+
+            document.getElementById('weatherWidget').innerHTML = `
+                <div class="row align-items-center">
+                    <div class="col-6">
+                        <img src="https://openweathermap.org/img/wn/${data.icon}@2x.png" alt="${data.description}" class="img-fluid">
+                    </div>
+                    <div class="col-6">
+                        <h3 class="mb-0">${Math.round(data.temperature)}°C</h3>
+                        <p class="mb-1">${data.description}</p>
+                        <small>${data.city}, ${data.country}</small>
+                    </div>
+                </div>
+                <hr class="bg-light">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <small>Humidity</small>
+                        <br>
+                        <strong>${data.humidity}%</strong>
+                    </div>
+                    <div class="col-4">
+                        <small>Pressure</small>
+                        <br>
+                        <strong>${data.pressure} hPa</strong>
+                    </div>
+                    <div class="col-4">
+                        <small>Wind</small>
+                        <br>
+                        <strong>${data.wind_speed} m/s</strong>
+                    </div>
+                </div>
+            `;
+
+        } catch (error) {
+            console.error('Error loading weather:', error);
+            document.getElementById('weatherWidget').innerHTML = `
+                <div class="text-center">
+                    <i class="fas fa-cloud-slash fa-2x mb-2"></i>
+                    <p class="mb-0">Weather service unavailable</p>
+                </div>
+            `;
+        }
+    }
+
+    function refreshCharts() {
+        if (statusChart) statusChart.destroy();
+        if (priorityChart) priorityChart.destroy();
+        loadCharts();
+        showToast('Charts refreshed!', 'success');
+    }
+</script>
+{% endblock %}

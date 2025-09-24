@@ -1,0 +1,212 @@
+# templates/tasks/task_detail.html
+{% extends 'base.html' %}
+
+{% block title %}{{ task.title }} - Task Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{{ task.title }}</h4>
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        Actions
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" onclick="editTask()">
+                            <i class="fas fa-edit me-2"></i>Edit
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="changeStatus()">
+                            <i class="fas fa-sync me-2"></i>Change Status
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="#" onclick="deleteTask()">
+                            <i class="fas fa-trash me-2"></i>Delete
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Status:</strong>
+                        <span class="badge bg-secondary ms-2">{{ task.get_status_display }}</span>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Priority:</strong>
+                        <span class="badge bg-{{ task.priority|yesno:"danger,warning,success" }} ms-2">
+                            {{ task.get_priority_display }}
+                        </span>
+                    </div>
+                </div>
+                
+                {% if task.description %}
+                    <div class="mb-3">
+                        <strong>Description:</strong>
+                        <p class="mt-2">{{ task.description|linebreaks }}</p>
+                    </div>
+                {% endif %}
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Created:</strong>
+                        <span class="text-muted">{{ task.created_at|date:"M d, Y H:i" }}</span>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Last Updated:</strong>
+                        <span class="text-muted">{{ task.updated_at|date:"M d, Y H:i" }}</span>
+                    </div>
+                </div>
+                
+                {% if task.due_date %}
+                    <div class="mb-3">
+                        <strong>Due Date:</strong>
+                        <span class="{% if task.is_overdue %}text-danger{% else %}text-muted{% endif %}">
+                            {{ task.due_date|date:"M d, Y H:i" }}
+                            {% if task.is_overdue %}
+                                <i class="fas fa-exclamation-triangle ms-1"></i>
+                                <small>(Overdue)</small>
+                            {% endif %}
+                        </span>
+                    </div>
+                {% endif %}
+                
+                {% if task.completed_at %}
+                    <div class="mb-3">
+                        <strong>Completed:</strong>
+                        <span class="text-success">{{ task.completed_at|date:"M d, Y H:i" }}</span>
+                    </div>
+                {% endif %}
+                
+                {% if task.get_tags_list %}
+                    <div class="mb-3">
+                        <strong>Tags:</strong>
+                        <div class="mt-2">
+                            {% for tag in task.get_tags_list %}
+                                <span class="badge bg-light text-dark me-1">#{{ tag }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Task Details</h6>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item d-flex justify-content-between px-0">
+                        <span>Created by:</span>
+                        <strong>{{ task.created_by.username }}</strong>
+                    </div>
+                    
+                    {% if task.assigned_to %}
+                        <div class="list-group-item d-flex justify-content-between px-0">
+                            <span>Assigned to:</span>
+                            <strong>{{ task.assigned_to.username }}</strong>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="list-group-item d-flex justify-content-between px-0">
+                        <span>Days since created:</span>
+                        <strong>{{ task.created_at|timesince }}</strong>
+                    </div>
+                    
+                    {% if task.due_date %}
+                        <div class="list-group-item d-flex justify-content-between px-0">
+                            <span>Time until due:</span>
+                            <strong class="{% if task.is_overdue %}text-danger{% endif %}">
+                                {{ task.due_date|timeuntil }}
+                            </strong>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">Quick Actions</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    {% if task.status == 'pending' %}
+                        <button class="btn btn-warning btn-sm" onclick="updateStatus('in_progress')">
+                            <i class="fas fa-play me-2"></i>Start Task
+                        </button>
+                    {% endif %}
+                    
+                    {% if task.status == 'in_progress' %}
+                        <button class="btn btn-success btn-sm" onclick="updateStatus('completed')">
+                            <i class="fas fa-check me-2"></i>Complete Task
+                        </button>
+                    {% endif %}
+                    
+                    {% if task.status != 'completed' %}
+                        <button class="btn btn-outline-secondary btn-sm" onclick="updateStatus('cancelled')">
+                            <i class="fas fa-times me-2"></i>Cancel Task
+                        </button>
+                    {% endif %}
+                    
+                    <a href="{% url 'tasks:task_list' %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Tasks
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function updateStatus(newStatus) {
+        try {
+            await makeRequest(`/api/tasks/{{ task.id }}/`, {
+                method: 'PATCH',
+                body: JSON.stringify({ status: newStatus })
+            });
+            
+            showToast('Task status updated!', 'success');
+            setTimeout(() => location.reload(), 1000);
+            
+        } catch (error) {
+            console.error('Error updating task:', error);
+            showToast('Error updating task status', 'danger');
+        }
+    }
+
+    function editTask() {
+        showToast('Edit functionality would redirect to edit form', 'info');
+    }
+
+    function changeStatus() {
+        showToast('Status change modal would open here', 'info');
+    }
+
+    async function deleteTask() {
+        if (confirm('Are you sure you want to delete this task?')) {
+            try {
+                await makeRequest(`/api/tasks/{{ task.id }}/`, {
+                    method: 'DELETE'
+                });
+                
+                showToast('Task deleted successfully!', 'success');
+                setTimeout(() => {
+                    window.location.href = '/tasks/';
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Error deleting task:', error);
+                showToast('Error deleting task', 'danger');
+            }
+        }
+    }
+</script>
+{% endblock %}
